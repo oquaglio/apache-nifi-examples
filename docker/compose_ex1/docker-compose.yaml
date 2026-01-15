@@ -1,65 +1,53 @@
-# services:
-#   nifi:
-#     image: apache/nifi:latest
-#     container_name: apache-nifi
-#     ports:
-#       - "8080:8080"
-#       - "8443:8443"
-#     environment:
-#       - NIFI_WEB_HTTPS_PORT=8443
-#       - NIFI_CLUSTER_IS_NODE=false
-#       - NIFI_ELECTION_ALWAYS_ELECT_SELF=true
-#     volumes:
-#       - ./nifi-data/conf:/opt/nifi/nifi-current/conf
-#       - ./nifi-data/content:/opt/nifi/nifi-current/content_repository
-#       - ./nifi-data/flowfile:/opt/nifi/nifi-current/flowfile_repository
-#       - ./nifi-data/provenance:/opt/nifi/nifi-current/provenance_repository
-#       - ./nifi-data/database:/opt/nifi/nifi-current/database_repository
-#     healthcheck:
-#       test:
-#         [
-#           "CMD",
-#           "curl",
-#           "-f",
-#           "<http://localhost:8080/nifi-api/system-diagnostics>",
-#         ]
-#       interval: 10s
-#       retries: 15
-
-x-ports: &nifi-ports
-  NIFI_HTTPS_PORT: 8443 # ← Change this once (host & container port)
-
 services:
   nifi:
-    image: apache/nifi:latest # or apache/nifi:2.0.0 if you want exact version
+    image: apache/nifi:latest # or pin e.g. apache/nifi:2.0.0-Mx if needed
     container_name: nifi
     restart: unless-stopped
+
     ports:
-      - "8443:8443" # HTTPS UI (default in recent images)
-      #- "8080:8080" # if you prefer HTTP (set NIFI_WEB_HTTP_PORT below)
+      - "${NIFI_HTTPS_PORT}:8443" # host:container — both use the same value via var
+
     environment:
-      - NIFI_WEB_HTTPS_PORT=8443
-      #- NIFI_WEB_HTTP_PORT=8080 # uncomment if you want plain HTTP instead
-      - SINGLE_USER_CREDENTIALS_USERNAME=admin
-      - SINGLE_USER_CREDENTIALS_PASSWORD=your-strong-password-here # change this!
-      - NIFI_PYTHON_COMMAND=python3 # this enables Python support (uncomments/sets internally)
-      # Optional: more Python tuning
+      # Force HTTPS listening on all interfaces (required for external access)
+      - NIFI_WEB_HTTPS_HOST=0.0.0.0
+      - NIFI_WEB_HTTPS_PORT=${NIFI_HTTPS_PORT}
+
+      # Disable HTTP completely (recommended with HTTPS)
+      - NIFI_WEB_HTTP_PORT=
+
+      # Pull from .env file
+      - SINGLE_USER_CREDENTIALS_USERNAME=${SINGLE_USER_CREDENTIALS_USERNAME}
+      - SINGLE_USER_CREDENTIALS_PASSWORD=${SINGLE_USER_CREDENTIALS_PASSWORD}
+
+      # Optional: enable Python processors support
+      - NIFI_PYTHON_COMMAND=python3
       - NIFI_PYTHON_MAX_PROCESSES=50
-    volumes: # persist state if desired
+
+    volumes:
+      # Core persistence (state is most important)
       - nifi-data:/opt/nifi/nifi-current/state
-      - nifi-conf:/opt/nifi/conf # careful: only if you really need to override props
-      - nifi-logs:/opt/nifi/logs
+
+      # Optional — only mount if you need to customize nifi.properties or other conf
+      # - ./nifi-conf:/opt/nifi/nifi-current/conf:ro
+
+      # Logs (useful for debugging without docker logs)
+      - nifi-logs:/opt/nifi/nifi-current/logs
+
     healthcheck:
       test:
         [
           "CMD",
           "curl",
           "-f",
-          "<http://localhost:8443/nifi-api/system-diagnostics>",
+          "-k",
+          "https://localhost:${NIFI_HTTPS_PORT}/nifi-api/system-diagnostics",
         ]
       interval: 10s
+      timeout: 5s
       retries: 15
+      start_period: 60s # Give NiFi time to generate certs & start Jetty
+
 volumes:
   nifi-data:
-  nifi-conf:
   nifi-logs:
+  # nifi-conf:   # uncomment only if you're overriding conf files
