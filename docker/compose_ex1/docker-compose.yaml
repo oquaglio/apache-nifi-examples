@@ -25,13 +25,27 @@ services:
 
     volumes:
       # Core persistence (state is most important)
-      - nifi-data:/opt/nifi/nifi-current/state
+      #- nifi-data:/opt/nifi/nifi-current/state
+      - type: bind
+        source: ./nifi-data
+        target: /opt/nifi/nifi-current/state
 
       # Optional — only mount if you need to customize nifi.properties or other conf
       # - ./nifi-conf:/opt/nifi/nifi-current/conf:ro
 
       # Logs (useful for debugging without docker logs)
-      - nifi-logs:/opt/nifi/nifi-current/logs
+      # Named volume
+      #- nifi-logs:/opt/nifi/nifi-current/logs
+      # Bind mount
+      - type: bind
+        source: ./nifi-logs
+        target: /opt/nifi/nifi-current/logs
+
+      # Extensions / custom processors (optional)
+      - nifi-extensions:/opt/nifi/nifi-current/lib
+      # - type: bind
+      #   source: ./nifi-extensions
+      #   target: /opt/nifi/nifi-current/lib
 
     healthcheck:
       test:
@@ -51,3 +65,14 @@ volumes:
   nifi-data:
   nifi-logs:
   # nifi-conf:   # uncomment only if you're overriding conf files
+  nifi-extensions:
+# volumes:
+#   nifi-data:
+#     driver: local
+#   nifi-logs:
+#     driver: local
+#   nifi-extensions:
+#     driver: local
+
+# volumes:
+#   - ./nifi-extensions:/opt/nifi/nifi-current/lib
